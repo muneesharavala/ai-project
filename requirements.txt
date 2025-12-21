@@ -1,0 +1,14 @@
+streamlit>=1.30
+numpy
+pandas
+opencv-python-headless
+tensorflow
+scikit-learn
+reportlab
+pillow
+gtts
+torch
+torchvision
+pytesseract
+qrcode
+pdfplumber
