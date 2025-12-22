@@ -28,6 +28,7 @@ import uuid
 import qrcode
 import tempfile
 from utils.database import create_table, insert_prediction, fetch_predictions
+import requests
 
 create_table()
 
@@ -41,10 +42,9 @@ def get_base64_image(path):
 
 LOGO_BASE64 = get_base64_image("assets/logo.png")
 
-import requests
 
 XRAY_MODEL_PATH = "models/chest_xray_model.h5"
-XRAY_MODEL_URL = "https://drive.google.com/file/d/1NRFFqkWix8kwvDVSTXUED2LLeUJAodxB/view?usp=drive_link"
+MODEL_URL = "https://drive.google.com/uc?export=download&id=1NRFFqkWix8kwvDVSTXUED2LLeUJAodxB"
 
 def ensure_xray_model():
     os.makedirs("models", exist_ok=True)
