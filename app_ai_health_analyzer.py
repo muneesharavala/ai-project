@@ -27,8 +27,9 @@ from datetime import datetime
 import uuid
 import qrcode
 import tempfile
+from utils.database import create_table, insert_prediction, fetch_predictions
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+create_table()
 
 TEAL = "#38bdf8"
 # -----------------------------
@@ -39,6 +40,26 @@ def get_base64_image(path):
         return base64.b64encode(f.read()).decode()
 
 LOGO_BASE64 = get_base64_image("assets/logo.png")
+
+import requests
+
+XRAY_MODEL_PATH = "models/chest_xray_model.h5"
+XRAY_MODEL_URL = "https://drive.google.com/file/d/1NRFFqkWix8kwvDVSTXUED2LLeUJAodxB/view?usp=drive_link"
+
+def ensure_xray_model():
+    os.makedirs("models", exist_ok=True)
+
+    if not os.path.exists(XRAY_MODEL_PATH):
+        with st.spinner("📥 Downloading Chest X-Ray AI model (first run only)..."):
+            r = requests.get(XRAY_MODEL_URL, stream=True)
+            if r.status_code != 200:
+                st.error("Failed to download X-Ray model.")
+                return
+
+            with open(XRAY_MODEL_PATH, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
 
 # -----------------------------
 # Page config (FIRST Streamlit call)
@@ -935,7 +956,9 @@ def load_models():
 
     return models_dict
 
+ensure_xray_model()
 models = load_models()
+
 
 # -----------------------------
 # UI Helper: Report block
@@ -1153,16 +1176,18 @@ def home_page():
 def chest_xray_page():
     st.header("🫁 Chest X-Ray Analyzer")
 
+    # ---- Model check ----
     if models["xray"] is None:
         st.error("Chest X-Ray model not available.")
         return
 
+    # ---- Upload ----
     file = st.file_uploader("Upload Chest X-Ray", type=["png", "jpg", "jpeg"])
     if not file:
         st.info("Please upload a chest X-ray image.")
         return
 
-    # ---------- IMAGE READ ----------
+    # ---- Read image ----
     file_bytes = np.frombuffer(file.read(), np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
@@ -1178,21 +1203,21 @@ def chest_xray_page():
         width=520
     )
 
-    # ---------- PREPROCESS ----------
+    # ---- Preprocess ----
     resized = cv2.resize(img_gray, (224, 224)) / 255.0
     inp = np.expand_dims(resized, (0, -1)).astype(np.float32)
 
-    # ---------- PREDICT ----------
+    # ---- Predict ----
     if st.button("🔍 Analyze X-Ray"):
         with st.spinner("Analyzing chest radiograph..."):
             pred = models["xray"].predict(inp)
             prob = float(pred[0][0])
 
+        # ---- Post-processing ----
         label = "PNEUMONIA" if prob > 0.5 else "NORMAL"
         conf = prob if label == "PNEUMONIA" else 1 - prob
-
-        color = "#ef4444" if label == "PNEUMONIA" else "#22c55e"
         disease = "Pneumonia" if label == "PNEUMONIA" else "No Lung Disease"
+        color = "#ef4444" if label == "PNEUMONIA" else "#22c55e"
 
         if conf < 0.30:
             severity = "Very Mild"
@@ -1211,7 +1236,14 @@ def chest_xray_page():
             else "Urgent Medical Attention"
         )
 
-        # ---------- RESULT CARD ----------
+        # ---- STEP 4: Save to database ----
+        insert_prediction(
+            disease=disease,
+            risk=severity,
+            score=round(conf, 3)
+        )
+
+        # ---- Result card ----
         st.markdown(
             f"""
             <div style="
@@ -1231,7 +1263,7 @@ def chest_xray_page():
             unsafe_allow_html=True
         )
 
-        # ---------- TABLE ----------
+        # ---- Table ----
         st.markdown(f"""
 ### 🫁 Pulmonary Assessment (AI Decision Support)
 
@@ -1245,17 +1277,17 @@ def chest_xray_page():
 ⚠️ *AI-assisted output. Radiologist confirmation required.*
 """)
 
-        # ---------- AI SUMMARY ----------
+        # ---- AI summary ----
         ai_text = ai_summary_prompt(
             label=label,
             confidence=conf * 100,
             condition_name="Chest X-Ray / Pneumonia Detection"
         )
+
         st.info(ai_text)
+        speak_text(f"Chest X-ray result {label}. Confidence {conf*100:.0f} percent.")
 
-        speak_text(f"Chest X-ray result: {label}. Confidence {conf*100:.0f} percent.")
-
-        # ---------- HISTORY ----------
+        # ---- History ----
         record = {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "type": "Chest X-Ray",
@@ -1265,8 +1297,8 @@ def chest_xray_page():
         }
         st.session_state.history.insert(0, record)
 
-        # ---------- SIMPLE PDF ----------
-        simple_pdf = create_pdf(
+        # ---- PDF ----
+        pdf_path = create_pdf(
             [
                 "Chest X-Ray Analysis Report",
                 f"Result: {label}",
@@ -1274,36 +1306,17 @@ def chest_xray_page():
                 f"Severity: {severity}",
                 f"Confidence: {conf*100:.2f}%",
                 "",
-                "AI Medical Summary:",
                 ai_text,
             ],
             "xray_report.pdf",
             "Chest X-Ray Report"
         )
 
-        with open(simple_pdf, "rb") as f:
+        with open(pdf_path, "rb") as f:
             st.download_button(
                 "📄 Download X-Ray Report (PDF)",
                 f,
                 file_name="xray_report.pdf"
-            )
-
-        # ---------- HOSPITAL PDF ----------
-        hospital_pdf = create_professional_xray_pdf(
-            patient_name="Demo Patient",
-            age=45,
-            gender="Male",
-            result=disease,
-            severity=severity,
-            confidence=conf * 100,
-            ai_summary=ai_text
-        )
-
-        with open(hospital_pdf, "rb") as f:
-            st.download_button(
-                "🏥 Download Hospital-Style Report",
-                f,
-                file_name="LIFE_LEN_Chest_XRay_Report.pdf"
             )
 
 #-------------------------------
@@ -1744,6 +1757,19 @@ elif current_page == "Contact":
     contact_page()
 elif current_page == "Legal":
     legal_page()
+
+st.divider()
+st.subheader("📊 X-Ray Analysis History")
+
+history = fetch_predictions()
+
+if history:
+    for row in history:
+        st.write(
+            f"🩻 {row[1]} | Severity: {row[2]} | Confidence: {row[3]} | ⏰ {row[4]}"
+        )
+else:
+    st.info("No X-ray analyses recorded yet.")
 
 # -----------------------------
 # Footer (website-style)

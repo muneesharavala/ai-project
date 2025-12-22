@@ -12,3 +12,4 @@ torchvision
 pytesseract
 qrcode
 pdfplumber
+requests
