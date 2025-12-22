@@ -1189,17 +1189,17 @@ def chest_xray_page():
 
     # ---- Read image ----
     file_bytes = np.frombuffer(file.read(), np.uint8)
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
-    if img is None:
+    if img_bgr is None:
         st.error("Invalid image file.")
         return
 
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
     st.image(
-        cv2.cvtColor(img, cv2.COLOR_BGR2RGB),
-        caption="Uploaded Chest X-Ray",
+        cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB),
+        caption="Uploaded Image",
         width=520
     )
 
@@ -1207,8 +1207,25 @@ def chest_xray_page():
     resized = cv2.resize(img_gray, (224, 224)) / 255.0
     inp = np.expand_dims(resized, (0, -1)).astype(np.float32)
 
-    # ---- Predict ----
+    # ---- Analyze button (MUST be inside function) ----
     if st.button("🔍 Analyze X-Ray"):
+
+        # STEP 1 — Validate X-ray
+        with st.spinner("Validating image..."):
+            is_xray, det_conf, det_label = predict_is_xray(img_bgr)
+
+        if not is_xray:
+            st.error("❌ This image is NOT a chest X-ray.")
+            st.info("Please upload a valid chest X-ray image.")
+            st.stop()   # ⛔ HARD STOP
+
+        if det_conf < 0.60:
+            st.warning(
+                "⚠️ Image quality too low. Please upload a clearer chest X-ray."
+            )
+            st.stop()   # ⛔ HARD STOP
+
+        # STEP 2 — Pneumonia prediction
         with st.spinner("Analyzing chest radiograph..."):
             pred = models["xray"].predict(inp)
             prob = float(pred[0][0])
@@ -1236,7 +1253,7 @@ def chest_xray_page():
             else "Urgent Medical Attention"
         )
 
-        # ---- STEP 4: Save to database ----
+        # ---- SAVE ONLY VALID X-RAYS ----
         insert_prediction(
             disease=disease,
             risk=severity,
@@ -1263,61 +1280,6 @@ def chest_xray_page():
             unsafe_allow_html=True
         )
 
-        # ---- Table ----
-        st.markdown(f"""
-### 🫁 Pulmonary Assessment (AI Decision Support)
-
-| Parameter | Result |
-|---------|--------|
-| Disease | {disease} |
-| Severity | {severity} |
-| Confidence | {conf*100:.2f}% |
-| Recommended Action | {urgency} |
-
-⚠️ *AI-assisted output. Radiologist confirmation required.*
-""")
-
-        # ---- AI summary ----
-        ai_text = ai_summary_prompt(
-            label=label,
-            confidence=conf * 100,
-            condition_name="Chest X-Ray / Pneumonia Detection"
-        )
-
-        st.info(ai_text)
-        speak_text(f"Chest X-ray result {label}. Confidence {conf*100:.0f} percent.")
-
-        # ---- History ----
-        record = {
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "type": "Chest X-Ray",
-            "result": label,
-            "score": round(conf * 100, 2),
-            "summary": ai_text,
-        }
-        st.session_state.history.insert(0, record)
-
-        # ---- PDF ----
-        pdf_path = create_pdf(
-            [
-                "Chest X-Ray Analysis Report",
-                f"Result: {label}",
-                f"Disease: {disease}",
-                f"Severity: {severity}",
-                f"Confidence: {conf*100:.2f}%",
-                "",
-                ai_text,
-            ],
-            "xray_report.pdf",
-            "Chest X-Ray Report"
-        )
-
-        with open(pdf_path, "rb") as f:
-            st.download_button(
-                "📄 Download X-Ray Report (PDF)",
-                f,
-                file_name="xray_report.pdf"
-            )
 
 #-------------------------------
 #----------------------------- Diabetes Page -----------------------------
