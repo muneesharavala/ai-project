@@ -13,3 +13,4 @@ pytesseract
 qrcode
 pdfplumber
 requests
+bcrypt
