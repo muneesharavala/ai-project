@@ -5,8 +5,7 @@ AI Health Analyzer is a Machine Learning–based web application designed to ana
 
 This project demonstrates the practical implementation of Machine Learning + Python + Web UI, making it suitable for real-world healthcare data analysis scenarios.
 
-🚀 Features
-
+🚀 Features:
 Machine Learning–based health prediction
 
 User-friendly web interface built with Streamlit
@@ -17,8 +16,7 @@ Data preprocessing and model evaluation
 
 Interactive result visualization
 
-🛠️ Tech Stack
-
+🛠️ Tech Stack:
 Programming Language: Python
 
 Machine Learning: Scikit-learn, Pandas, NumPy
@@ -37,8 +35,7 @@ ai-project/
 │── requirements.txt
 │── README.md
 
-⚙️ How It Works
-
+⚙️ How It Works:
 User enters health-related parameters.
 
 Input data is preprocessed and passed to the trained ML model.
@@ -60,8 +57,7 @@ pip install -r requirements.txt
 # Run the application
 streamlit run app.py
 
-📊 Output
-
+📊 Output:
 Interactive health prediction results
 
 Fast and accurate model response
@@ -70,8 +66,9 @@ Clean and intuitive UI
 
 (Add screenshots here to improve presentation)
 
-🎯 Learning Outcomes
 
+
+🎯 Learning Outcomes:
 Applied Machine Learning concepts to real-world data
 
 Integrated ML models with a web interface
@@ -80,8 +77,8 @@ Improved understanding of data preprocessing and model evaluation
 
 Gained experience deploying ML-powered applications
 
-🔮 Future Enhancements
 
+🔮 Future Enhancements:
 Improve model accuracy with larger datasets
 
 Add user authentication
@@ -90,8 +87,8 @@ Deploy application to cloud platforms
 
 Extend predictions to multiple health conditions
 
-📬 Contact
 
+📬 Contact:
 Muneesh Mani Karthik Aravala
 GitHub: https://github.com/muneesharavala
 
